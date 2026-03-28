@@ -1,6 +1,6 @@
 # Tim-SFSA((Temporally-dependent Solar Flare Survival Analysis)) model
 
-This repository is the cleaned public code release corresponding to the paper in `Deep Survival Analysis of Solar Flare Forecasting for Continuous Risk Forecasting`.
+This repository is the cleaned public code release corresponding to the paper draft in `Deep Survival Analysis of Solar Flare Forecasting for Continuous Risk Forecasting`.
 
 The project implements a sequence-based deep survival analysis solar-flare modeling pipeline with:
 
