@@ -1,0 +1,4 @@
+{
+  "selected_depth": 2,
+  "rule": "minimum mean validation IBS; within 0.005 prefer higher mean Uno C-index, then shallower depth"
+}
