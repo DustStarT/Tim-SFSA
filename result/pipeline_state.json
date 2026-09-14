@@ -1,0 +1,75 @@
+{
+  "created_utc": "2026-09-02T10:47:47.953091+00:00",
+  "stages": {
+    "prepare_event_data": {
+      "status": "complete",
+      "started_utc": "2026-09-02T10:47:49.162363+00:00",
+      "completed_utc": "2026-09-02T10:58:16.654716+00:00",
+      "artifacts": [
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/data/event_samples.pkl",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/data/event_sample_audit.csv"
+      ],
+      "details": {
+        "samples": 4645
+      }
+    },
+    "depth_selection": {
+      "status": "complete",
+      "started_utc": "2026-09-02T10:58:17.194564+00:00",
+      "completed_utc": "2026-09-02T13:53:39.212570+00:00",
+      "artifacts": [
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/depth_selection/selected_depth.json",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/depth_selection/depth_selection_summary.csv"
+      ],
+      "details": {
+        "selected_depth": 2
+      }
+    },
+    "official_experiments": {
+      "status": "complete",
+      "started_utc": "2026-09-04T03:54:11.107319+00:00",
+      "completed_utc": "2026-09-04T05:55:03.358321+00:00",
+      "artifacts": [
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/experiments/official/validation_pruned_features.json",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/experiments/official/official_experiments_summary.json"
+      ],
+      "details": {
+        "experiment_runs": 39,
+        "validation_pruned_feature_count": 20
+      }
+    },
+    "chronological_experiments": {
+      "status": "complete",
+      "started_utc": "2026-09-04T05:55:03.574438+00:00",
+      "completed_utc": "2026-09-04T11:17:02.382527+00:00",
+      "artifacts": [
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/experiments/chronological/tim_sfsa/seed_2345/metrics.json",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/experiments/chronological/chronological_experiments_summary.json"
+      ],
+      "details": {
+        "experiment_runs": 15
+      }
+    },
+    "aggregate": {
+      "status": "complete",
+      "started_utc": "2026-09-04T11:17:02.384261+00:00",
+      "completed_utc": "2026-09-04T11:17:07.695875+00:00",
+      "artifacts": [
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/aggregate/seed_summary.csv",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/aggregate/response_placeholders.json",
+        "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/aggregate/paired_model_differences.csv"
+      ],
+      "details": {
+        "metric_rows": 6750,
+        "summary_rows": 2250,
+        "figures": [
+          "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/figures/event_anchored_sampling.png",
+          "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/figures/calibration_12_24_48h.png",
+          "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/figures/feature_importance.png",
+          "/mnt/disk16T/lxc/Tim-SFSA_v2/result/run_all/figures/brier_vs_km_reference.png"
+        ],
+        "paired_difference_rows": 480
+      }
+    }
+  }
+}

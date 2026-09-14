@@ -1,0 +1,217 @@
+{
+  "official": [
+    {
+      "name": "tim_sfsa",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "logistic",
+      "family": "logistic",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "svm",
+      "family": "svm",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "lstm_classifier",
+      "family": "lstm_classifier",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "linear_cox",
+      "family": "linear_cox",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": true
+    },
+    {
+      "name": "lstm_linear_cox",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": true
+    },
+    {
+      "name": "no_lstm",
+      "family": "cox_neural",
+      "use_lstm": false,
+      "use_connector": true,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "no_pretraining",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "no_connector",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": false,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "balanced22",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": 0.22,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "legacy18",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "legacy18",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "validation_pruned",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "validation_pruned",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "bc_history",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": true,
+      "linear_head": false
+    }
+  ],
+  "chronological": [
+    {
+      "name": "tim_sfsa",
+      "family": "cox_neural",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "logistic",
+      "family": "logistic",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "svm",
+      "family": "svm",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "lstm_classifier",
+      "family": "lstm_classifier",
+      "use_lstm": true,
+      "use_connector": true,
+      "use_pretraining": true,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": false
+    },
+    {
+      "name": "linear_cox",
+      "family": "linear_cox",
+      "use_lstm": false,
+      "use_connector": false,
+      "use_pretraining": false,
+      "balanced_event_ratio": null,
+      "feature_set": "all24",
+      "include_bc_history": false,
+      "linear_head": true
+    }
+  ],
+  "seeds": [
+    2345,
+    2346,
+    2347
+  ],
+  "depth_candidates": [
+    1,
+    2,
+    3,
+    7
+  ],
+  "selection_split": "official partition 4",
+  "test_selection_prohibited": true
+}

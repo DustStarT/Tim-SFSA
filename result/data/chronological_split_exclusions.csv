@@ -1,0 +1,10 @@
+split_mode,reason,group_bands,sample_id,group_id,ar,harp_id,partition,prediction_start,duration_hours,event
+chronological,active_region_crosses_chronological_boundary,"train,validation",5011__event_anchor_000,5011,ar5011,5011,4,2014-12-29 11:24:00,118.26666666666667,1
+chronological,active_region_crosses_chronological_boundary,"train,validation",5011__event_anchor_001,5011,ar5011,5011,4,2015-01-03 13:36:00,25.7,1
+chronological,active_region_crosses_chronological_boundary,"train,validation",5011__event_anchor_002,5011,ar5011,5011,4,2015-01-04 19:12:00,158.0,0
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_000,6206,ar6206,6206,5,2015-12-21 08:48:00,18.45,1
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_001,6206,ar6206,6206,5,2015-12-22 07:12:00,17.183333333333334,1
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_002,6206,ar6206,6206,5,2015-12-23 04:12:00,21.616666666666667,1
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_003,6206,ar6206,6206,5,2015-12-24 05:48:00,101.53333333333333,1
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_004,6206,ar6206,6206,5,2015-12-28 15:12:00,103.96666666666667,1
+chronological,active_region_crosses_chronological_boundary,"test,validation",6206__event_anchor_005,6206,ar6206,6206,5,2016-01-02 03:00:00,28.8,0

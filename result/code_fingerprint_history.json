@@ -1,0 +1,70 @@
+[
+  {
+    "previous": {
+      "algorithm": "sha256",
+      "digest": "531d8e920ee739651cdd636dc704fb8aff7ba9d098d7ee28327aafce2d3cf718",
+      "files": [
+        "data_prep/__init__.py",
+        "data_prep/data_manager.py",
+        "data_prep/file_manager.py",
+        "data_prep/subsequence_generator.py",
+        "main.py",
+        "revision/__init__.py",
+        "revision/baselines.py",
+        "revision/config.py",
+        "revision/data.py",
+        "revision/experiments.py",
+        "revision/importance.py",
+        "revision/metrics.py",
+        "revision/models.py",
+        "revision/pipeline.py",
+        "revision/preprocessing.py",
+        "revision/reporting.py",
+        "revision/state.py",
+        "revision/survival.py",
+        "revision/synthetic.py",
+        "revision/training.py",
+        "run_revision_pipeline.py",
+        "tests/test_event_samples.py",
+        "tests/test_metrics.py",
+        "tests/test_preprocessing.py",
+        "tests/test_splits_and_state.py",
+        "tests/test_survival.py"
+      ]
+    },
+    "replacement": {
+      "algorithm": "sha256",
+      "digest": "ce6173d5f9f2388e55f22116fa33907899b1c290dcbe733243c8c7f8e6329f21",
+      "files": [
+        "data_prep/__init__.py",
+        "data_prep/data_manager.py",
+        "data_prep/file_manager.py",
+        "data_prep/subsequence_generator.py",
+        "main.py",
+        "revision/__init__.py",
+        "revision/baselines.py",
+        "revision/config.py",
+        "revision/data.py",
+        "revision/experiments.py",
+        "revision/importance.py",
+        "revision/metrics.py",
+        "revision/models.py",
+        "revision/pipeline.py",
+        "revision/preprocessing.py",
+        "revision/reporting.py",
+        "revision/state.py",
+        "revision/survival.py",
+        "revision/synthetic.py",
+        "revision/training.py",
+        "run_revision_pipeline.py",
+        "tests/test_baselines.py",
+        "tests/test_event_samples.py",
+        "tests/test_metrics.py",
+        "tests/test_preprocessing.py",
+        "tests/test_splits_and_state.py",
+        "tests/test_survival.py"
+      ]
+    },
+    "reason": "Known resume migration: purge chronological boundary-crossing HARPs, set the deterministic CuBLAS workspace, and replace the unconverged linear-Cox optimizer. Event data, depth selection, and all other completed official experiments remain reusable."
+  }
+]
