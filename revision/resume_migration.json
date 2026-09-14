@@ -1,0 +1,5 @@
+{
+  "previous_digest": "531d8e920ee739651cdd636dc704fb8aff7ba9d098d7ee28327aafce2d3cf718",
+  "replacement_digest": "ce6173d5f9f2388e55f22116fa33907899b1c290dcbe733243c8c7f8e6329f21",
+  "reason": "Known resume migration: purge chronological boundary-crossing HARPs, set the deterministic CuBLAS workspace, and replace the unconverged linear-Cox optimizer. Event data, depth selection, and all other completed official experiments remain reusable."
+}

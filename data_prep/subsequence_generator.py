@@ -1,229 +1,312 @@
+"""Event-anchored sample construction for Tim-SFSA.
+
+The former implementation produced overlapping sliding windows and assigned
+every non-event window the same 48-hour censoring time.  The revised design
+creates one sample at observation start and one after each eligible M/X flare.
+Follow-up ends at the next M/X flare or the actual HARP observation end.
 """
-子序列生成器
-为时序生存模型（如LSTM-DeepHit）从合并后的长时序样本中生成子序列。
-"""
-import pandas as pd
-import numpy as np
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
 import logging
 import re
-from datetime import datetime
+from typing import Any, Iterable
 
-def generate_subsequences(
-    sample_dict,
-    num_covariate_timesteps,
-    prediction_window_hours,
-    sub_sequence_step,
-    active_feature_names
+import numpy as np
+import pandas as pd
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EventSampleConfig:
+    history_hours: float = 4.0
+    cadence_minutes: float = 12.0
+    history_steps: int = 20
+    max_gap_minutes: float = 24.0
+    flare_history_hours: float = 24.0
+
+
+def _timestamp(value: Any) -> pd.Timestamp | None:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    timestamp = pd.Timestamp(parsed)
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.tz_convert("UTC").tz_localize(None)
+    return timestamp
+
+
+def _normalise_events(events: Iterable[Any], observation_end: pd.Timestamp) -> list[dict]:
+    deduplicated: dict[Any, dict] = {}
+    for raw in events or []:
+        event = dict(raw) if isinstance(raw, dict) else {"time": raw}
+        event_time = _timestamp(event.get("time"))
+        if event_time is None or event_time > observation_end:
+            continue
+        event["time"] = event_time
+        event_id = event.get("flare_id")
+        key = ("id", str(event_id)) if event_id not in (None, "") else (
+            str(event.get("flare_class", "")), event_time.isoformat()
+        )
+        if key not in deduplicated:
+            event.setdefault("source_occurrence_count", 1)
+            event.setdefault("duplicate_occurrence_count", 0)
+            deduplicated[key] = event
+            continue
+        retained = deduplicated[key]
+        retained["source_occurrence_count"] = int(
+            retained.get("source_occurrence_count", 1)
+        ) + int(event.get("source_occurrence_count", 1))
+        retained["duplicate_occurrence_count"] = int(
+            retained.get("duplicate_occurrence_count", 0)
+        ) + int(event.get("duplicate_occurrence_count", 0)) + 1
+    return sorted(deduplicated.values(), key=lambda item: item["time"])
+
+
+def _record_metadata(sample: dict) -> dict:
+    raw = str(sample.get("record_id", ""))
+    match = re.findall(r"ar\D*?(\d+)", raw, flags=re.IGNORECASE)
+    normalised_ar = f"ar{int(match[-1])}" if match else raw.lower()
+    return {
+        "raw": sample.get("record_id"),
+        "ar": sample.get("ar_id") or normalised_ar,
+        "harp_id": sample.get("harp_id"),
+        "partition": sample.get("partition"),
+        "observation_start": _timestamp(sample.get("start_time")),
+        "observation_end": _timestamp(sample.get("end_time")),
+        "source_file": sample.get("source_file"),
+    }
+
+
+def _event_summary(event: dict) -> dict:
+    return {
+        "event_id": event.get("flare_id"),
+        "event_time": event.get("time"),
+        "event_class": event.get("flare_class"),
+        "event_source": event.get("source"),
+        "catalog_match": bool(event.get("catalog_match", False)),
+        "raw_label_timestamp": event.get("raw_label_timestamp"),
+        "catalog_time_offset_hours": event.get("catalog_time_offset_hours"),
+        "sol_standard": event.get("sol_standard"),
+        "catalog_noaa_active_region": event.get("noaa_active_region"),
+        "catalog_row_count": int(event.get("catalog_row_count", 1)),
+        "catalog_duplicate_row_count": int(event.get("catalog_duplicate_row_count", 0)),
+        "catalog_conflict": bool(event.get("catalog_conflict", False)),
+        "catalog_alternate_records": event.get("catalog_alternate_records", []),
+        "raw_label": event.get("raw_label"),
+        "raw_labels": event.get("raw_labels", [event.get("raw_label")]),
+        "source_occurrence_count": int(event.get("source_occurrence_count", 1)),
+        "duplicate_occurrence_count": int(event.get("duplicate_occurrence_count", 0)),
+    }
+
+
+def _causal_flare_history(
+    events: list[dict], prediction_start: pd.Timestamp, lookback_hours: float
+) -> dict[str, float]:
+    lower = prediction_start - pd.Timedelta(hours=float(lookback_hours))
+    result = {"B_COUNT_24H": 0.0, "C_COUNT_24H": 0.0}
+    for event in events:
+        event_time = event["time"]
+        if not (lower < event_time <= prediction_start):
+            continue
+        flare_class = str(event.get("flare_class", event.get("label_prefix", ""))).upper()
+        if flare_class.startswith("B"):
+            result["B_COUNT_24H"] += 1.0
+        elif flare_class.startswith("C"):
+            result["C_COUNT_24H"] += 1.0
+    return result
+
+
+def generate_event_samples(
+    sample_dict: dict,
+    active_feature_names: list[str] | None = None,
+    config: EventSampleConfig | dict | None = None,
+    *,
+    return_audit: bool = False,
 ):
-    """
-    从单个长时序样本中生成子序列。
+    """Create event-anchored survival samples for one HARP.
 
-    Args:
-        sample_dict (dict): 包含 'features', 'time', 'event' 和 'timestamps_list' 的字典。
-        num_covariate_timesteps (int): 每个子序列应包含的时间步数。
-        prediction_window_hours (int): 用于确定事件标签的预测窗口（小时）。
-        sub_sequence_step (int): 创建子序列的步长（滑动窗口的移动距离）。
-        active_feature_names (list): 要使用的特征的名称列表。
-
-    Returns:
-        list: 一个包含多个子序列字典的列表。
+    Flares occurring while the four-hour covariate history is collected are
+    recorded as covered events and skipped as targets.
     """
-    all_features_df = sample_dict['features']
-    event_timestamp_str = sample_dict.get('event_time_raw')
-    parent_event_occurred = sample_dict['event']
-    timestamps = sample_dict['timestamps_list']
-    
-    # 核心修复: 只使用激活的特征
-    if active_feature_names:
-        features_df = all_features_df[active_feature_names]
+
+    if config is None:
+        cfg = EventSampleConfig()
+    elif isinstance(config, EventSampleConfig):
+        cfg = config
     else:
-        # 如果没有指定激活特征，则使用所有特征（作为后备）
-        features_df = all_features_df
+        cfg = EventSampleConfig(**{
+            key: value for key, value in dict(config).items()
+            if key in EventSampleConfig.__dataclass_fields__
+        })
 
-    # 关键修复: 重置DataFrame的索引，以确保它能与后续创建的
-    # 布尔掩码(valid_mask)的索引对齐。
-    features_df.reset_index(drop=True, inplace=True)
+    audit: list[dict] = []
+    features = sample_dict.get("features")
+    timestamps_raw = sample_dict.get("timestamps_list", [])
+    if features is None:
+        result = []
+        audit.append({"status": "dropped", "reason": "missing_features"})
+        return (result, audit) if return_audit else result
 
-    subsequences = []
-    
-    # 2. 验证和处理时间戳
-    # 显式创建Series以使用reset_index方法
-    all_timestamps_dt = pd.Series(pd.to_datetime(timestamps, errors='coerce'))
-    valid_mask = ~pd.isna(all_timestamps_dt)
-    if not valid_mask.any():
-        return subsequences
-        
-    features = features_df[valid_mask]
-    timestamps = all_timestamps_dt[valid_mask].reset_index(drop=True)
+    features_df = features.copy() if isinstance(features, pd.DataFrame) else pd.DataFrame(features)
+    if active_feature_names:
+        features_df = features_df.reindex(columns=list(active_feature_names))
+    timestamps = pd.Series([_timestamp(value) for value in timestamps_raw], name="timestamp")
+    if len(features_df) != len(timestamps):
+        result = []
+        audit.append({
+            "status": "dropped", "reason": "feature_timestamp_length_mismatch",
+            "feature_rows": len(features_df), "timestamp_rows": len(timestamps),
+        })
+        return (result, audit) if return_audit else result
 
-    if len(features) < num_covariate_timesteps:
-        return subsequences
+    aligned = features_df.reset_index(drop=True).copy()
+    aligned.insert(0, "__timestamp__", timestamps)
+    aligned.dropna(subset=["__timestamp__"], inplace=True)
+    aligned.sort_values("__timestamp__", inplace=True)
+    aligned.drop_duplicates(subset=["__timestamp__"], keep="first", inplace=True)
+    aligned.reset_index(drop=True, inplace=True)
+    if aligned.empty:
+        result = []
+        audit.append({"status": "dropped", "reason": "no_valid_timestamps"})
+        return (result, audit) if return_audit else result
 
-    actual_event_time = pd.to_datetime(event_timestamp_str, errors='coerce') if parent_event_occurred and event_timestamp_str else pd.NaT
+    observation_start = pd.Timestamp(aligned["__timestamp__"].iloc[0])
+    observation_end = pd.Timestamp(aligned["__timestamp__"].iloc[-1])
+    major_events = _normalise_events(sample_dict.get("major_events", []), observation_end)
+    history_events = _normalise_events(
+        sample_dict.get("flare_history_events", major_events), observation_end
+    )
+    record_base = _record_metadata(sample_dict)
+    record_base["observation_start"] = observation_start
+    record_base["observation_end"] = observation_end
 
-    # 3. 定义预测窗口并开始滑动
-    prediction_window_timedelta = pd.Timedelta(hours=prediction_window_hours)
-    
-    # 包含端点：当 len(timestamps) == num_covariate_timesteps 时也应生成一个子序列
-    iterator = range(0, len(timestamps) - num_covariate_timesteps + 1, sub_sequence_step)
+    samples: list[dict] = []
+    anchor = observation_start
+    iteration = 0
+    max_iterations = len(major_events) + 2
+    while iteration < max_iterations:
+        history_end_exclusive = anchor + pd.Timedelta(hours=float(cfg.history_hours))
+        eligible = aligned[
+            (aligned["__timestamp__"] >= anchor)
+            & (aligned["__timestamp__"] < history_end_exclusive)
+        ].iloc[: int(cfg.history_steps)]
+        if len(eligible) < int(cfg.history_steps):
+            partial_times = eligible["__timestamp__"].reset_index(drop=True)
+            partial_gaps = partial_times.diff().dropna()
+            partial_max_gap = (
+                partial_gaps.max() if not partial_gaps.empty else pd.Timedelta(0)
+            )
+            allowed_gap = pd.Timedelta(minutes=float(cfg.max_gap_minutes))
+            reason = "history_gap" if partial_max_gap > allowed_gap else "incomplete_history"
+            audit.append({
+                **record_base, "status": "dropped", "reason": reason,
+                "anchor_time": anchor, "available_steps": int(len(eligible)),
+                "required_steps": int(cfg.history_steps),
+                "max_gap_minutes": partial_max_gap.total_seconds() / 60.0,
+            })
+            break
 
-    # 诊断性日志：如果正好能生成一个窗口，记录一条调试信息（便于追踪被丢弃的边界样本）
-    try:
-        logger = logging.getLogger(__name__)
-        if len(timestamps) == num_covariate_timesteps:
-            logger.debug(f"Subsequence generator: timestamps length == num_covariate_timesteps ({num_covariate_timesteps}); will generate exactly one subsequence for record_id={sample_dict.get('record_id')}")
-    except Exception:
-        pass
+        history_times = eligible["__timestamp__"].reset_index(drop=True)
+        first_delay = history_times.iloc[0] - anchor
+        gaps = history_times.diff().dropna()
+        max_gap = gaps.max() if not gaps.empty else pd.Timedelta(0)
+        median_gap = gaps.median() if not gaps.empty else pd.Timedelta(0)
+        history_span = history_times.iloc[-1] - history_times.iloc[0]
+        allowed_gap = pd.Timedelta(minutes=float(cfg.max_gap_minutes))
+        nominal_gap = pd.Timedelta(minutes=float(cfg.cadence_minutes))
+        minimum_span = nominal_gap * max(0, int(cfg.history_steps) - 2)
+        cadence_invalid = (
+            median_gap < nominal_gap / 2
+            or median_gap > allowed_gap
+            or history_span < minimum_span
+        )
+        if first_delay > allowed_gap or max_gap > allowed_gap or cadence_invalid:
+            audit.append({
+                **record_base, "status": "dropped", "reason": "history_gap",
+                "anchor_time": anchor,
+                "first_delay_minutes": first_delay.total_seconds() / 60.0,
+                "max_gap_minutes": max_gap.total_seconds() / 60.0,
+                "median_gap_minutes": median_gap.total_seconds() / 60.0,
+                "history_span_minutes": history_span.total_seconds() / 60.0,
+            })
+            break
 
-    def _build_record_metadata(sample):
-        raw = sample.get('record_id')
-        info = {'raw': raw, 'ar': None, 'start': None, 'end': None, 'flare_class': None, 'role': None}
-        try:
-            if raw is not None and isinstance(raw, str):
-                # Support patterns like '@4629_ar1999' and 'AR1999' etc.
-                # Extract the last occurrence of ar followed by digits and normalize to lowercase 'ar<digits>'.
-                m_ar_all = re.findall(r'ar\D*?(\d+)', raw, flags=re.IGNORECASE)
-                if m_ar_all:
-                    # pick the last numeric group (most specific)
-                    ar_num = m_ar_all[-1]
-                    info['ar'] = f'ar{int(ar_num)}'
-                else:
-                    # fallback to older pattern
-                    m_ar = re.search(r'\b([aA][rR]?\d+)\b', raw)
-                    if m_ar:
-                        info['ar'] = m_ar.group(1).lower()
-                m_fc = re.search(r'\b([M|X|C|B]\d+(?:\.\d+)?)\b', raw, flags=re.IGNORECASE)
-                if m_fc:
-                    info['flare_class'] = m_fc.group(1)
-                m_role = re.search(r'\b(Primary|Secondary)\b', raw, flags=re.IGNORECASE)
-                if m_role:
-                    info['role'] = m_role.group(1)
-        except Exception:
-            pass
-        st = sample.get('start_time') or None
-        ed = sample.get('end_time') or None
-        if st is not None and not isinstance(st, datetime):
-            try:
-                st = pd.to_datetime(st)
-            except Exception:
-                st = None
-        if ed is not None and not isinstance(ed, datetime):
-            try:
-                ed = pd.to_datetime(ed)
-            except Exception:
-                ed = None
-        info['start'] = st
-        info['end'] = ed
-        return info
+        prediction_start = pd.Timestamp(history_times.iloc[-1])
+        if prediction_start >= observation_end:
+            audit.append({
+                **record_base, "status": "dropped", "reason": "nonpositive_followup",
+                "anchor_time": anchor, "prediction_start": prediction_start,
+            })
+            break
 
-    for i in iterator:
-        # 定义协变量窗口
-        covariate_window_end_idx = i + num_covariate_timesteps
-        covariate_features = features[i:covariate_window_end_idx]
-        
-        # 生存分析在协变量窗口结束后开始
-        prediction_window_start_time = timestamps.iloc[covariate_window_end_idx - 1]
-        prediction_window_end_time = prediction_window_start_time + prediction_window_timedelta
+        covered_events = [
+            event for event in major_events if anchor < event["time"] <= prediction_start
+        ]
+        target = next(
+            (event for event in major_events if prediction_start < event["time"] <= observation_end),
+            None,
+        )
+        followup_end = target["time"] if target is not None else observation_end
+        duration_hours = (followup_end - prediction_start).total_seconds() / 3600.0
+        if duration_hours <= 0:
+            audit.append({
+                **record_base, "status": "dropped", "reason": "nonpositive_duration",
+                "anchor_time": anchor, "prediction_start": prediction_start,
+                "followup_end": followup_end,
+            })
+            break
 
-        # 确定此子序列的事件和生存/审查时间
-        event = 0
-        duration = float(prediction_window_hours) # 默认审查时间
+        target_summary = _event_summary(target) if target is not None else {
+            "event_id": None, "event_time": None, "event_class": None,
+            "event_source": None, "sol_standard": None, "raw_label": None,
+            "catalog_match": None, "raw_label_timestamp": None,
+            "catalog_time_offset_hours": None,
+            "catalog_noaa_active_region": None, "catalog_row_count": 0,
+            "catalog_duplicate_row_count": 0, "catalog_conflict": False,
+            "catalog_alternate_records": [],
+            "raw_labels": [], "source_occurrence_count": 0,
+            "duplicate_occurrence_count": 0,
+        }
+        sample_id = f"{record_base.get('harp_id') or record_base.get('raw')}__event_anchor_{iteration:03d}"
+        record_meta = {
+            **record_base, "sample_id": sample_id, "interval_index": iteration,
+            "anchor_time": anchor, "history_start": pd.Timestamp(history_times.iloc[0]),
+            "history_end": prediction_start, "prediction_start": prediction_start,
+            "followup_end": followup_end,
+            "censor_reason": None if target is not None else "observation_end",
+            "covered_events": [_event_summary(event) for event in covered_events],
+            **target_summary,
+        }
+        samples.append({
+            "sample_id": sample_id,
+            "features": eligible.drop(columns=["__timestamp__"]).to_numpy(dtype=np.float32),
+            "feature_names": list(eligible.columns[1:]),
+            "history_timestamps": [pd.Timestamp(value) for value in history_times],
+            "duration": float(duration_hours), "duration_hours": float(duration_hours),
+            "duration_units": "hours", "event": int(target is not None),
+            "record_id": record_meta,
+            "causal_flare_history": _causal_flare_history(
+                history_events, prediction_start, cfg.flare_history_hours
+            ),
+        })
+        audit.append({
+            **record_meta, "status": "created", "event": int(target is not None),
+            "duration_hours": float(duration_hours),
+            "covered_event_count": len(covered_events),
+        })
 
-        if pd.notna(actual_event_time):
-            # 检查真实事件是否落入此子序列的预测窗口内
-            if prediction_window_start_time < actual_event_time <= prediction_window_end_time:
-                event = 1
-                # 计算从窗口开始到事件的精确持续时间
-                duration = (actual_event_time - prediction_window_start_time).total_seconds() / 3600.0
-                duration = min(duration, float(prediction_window_hours))
+        if target is None:
+            break
+        anchor = pd.Timestamp(target["time"])
+        iteration += 1
 
-        # 确保协变量窗口是完整的
-        if covariate_features.shape[0] == num_covariate_timesteps:
-            # 转为 numpy 并确保为 float32
-            try:
-                final_features = covariate_features.values.astype(np.float32)
-            except Exception:
-                # fallback: cast DataFrame directly
-                final_features = np.array(covariate_features, dtype=np.float32)
-
-            # 如果是 1D，reshape 为 (1, n_features)
-            if final_features.ndim == 1:
-                final_features = final_features.reshape(1, -1)
-            # ========== 序列级聚合特征（可选） ==========
-            try:
-                # 只有当外部配置明确允许时才计算和附加聚合特征
-                include_agg = False
-                if 'sequence_generation' in sample_dict.get('config', {}):
-                    include_agg = bool(sample_dict['config']['sequence_generation'].get('include_aggregated_features', False))
-                # 兼容旧调用：如果没有在 sample_dict 中传递 config，对外部调用方传入的 active_feature_names 来判断（preprocessor 会传入一个 wrapper）
-                if not include_agg and hasattr(generate_subsequences, '_include_agg'):
-                    include_agg = bool(getattr(generate_subsequences, '_include_agg'))
-
-                if include_agg:
-                    ft = final_features  # shape: (T, n_features)
-                    # 在统计前对极端值进行裁剪和 NaN 清洗
-                    try:
-                        SENTINEL = float(sample_dict.get('config', {}).get('data', {}).get('sentinel_threshold', 1e6))
-                    except Exception:
-                        SENTINEL = 1e6
-                    # 替换 inf 为 NaN
-                    ft = np.where(np.isfinite(ft), ft, np.nan).astype(np.float32)
-                    # 裁剪极端值
-                    try:
-                        ft = np.clip(ft, -SENTINEL, SENTINEL)
-                    except Exception:
-                        pass
-                    # 计算按列的统计量（NaN 安全）
-                    mean_vals = np.nan_to_num(np.nanmean(ft, axis=0).astype(np.float32), nan=0.0)
-                    var_vals = np.nan_to_num(np.nanvar(ft, axis=0).astype(np.float32), nan=0.0)
-                    std_vals = np.nan_to_num(np.nanstd(ft, axis=0).astype(np.float32), nan=0.0)
-                    max_vals = np.nan_to_num(np.nanmax(ft, axis=0).astype(np.float32), nan=0.0)
-                    min_vals = np.nan_to_num(np.nanmin(ft, axis=0).astype(np.float32), nan=0.0)
-
-                    # 带上自身（原始序列的最后时刻值）
-                    self_vals = np.nan_to_num(ft[-1, :].astype(np.float32), nan=0.0)
-
-                    # 拼接顺序：self, mean, var, std, max, min -> 共 6 倍每特征
-                    agg_vec = np.concatenate([self_vals, mean_vals, var_vals, std_vals, max_vals, min_vals]).astype(np.float32)
-                    # 广播到每个时间步（与现有下游一致的按时间步拼接）
-                    agg_broadcast = np.repeat(agg_vec[None, :], ft.shape[0], axis=0)
-                    final_features = np.concatenate([ft, agg_broadcast], axis=1)
-                else:
-                    # 保持原样
-                    final_features = final_features
-            except Exception:
-                # 任何失败都回退到原始 final_features
-                final_features = final_features
-
-            # Debug: log the resulting feature width to help track mismatches
-            try:
-                logger = logging.getLogger(__name__)
-                logger.debug(f"Generated subsequence: T={final_features.shape[0]}, n_features={final_features.shape[1]} (base_features={ft.shape[1]}) for sample={sample_dict.get('record_id')}")
-            except Exception:
-                pass
-
-            # 构建记录元数据并附加 interval/subsequence 信息
-            record_meta = _build_record_metadata(sample_dict)
-            try:
-                record_meta['interval_index'] = int(i)
-            except Exception:
-                record_meta['interval_index'] = i
-            try:
-                record_meta['subseq_start'] = timestamps.iloc[i]
-            except Exception:
-                record_meta['subseq_start'] = None
-            try:
-                record_meta['subseq_end'] = prediction_window_end_time
-            except Exception:
-                record_meta['subseq_end'] = None
-
-            subseq = {
-                'features': final_features,
-                'duration': duration,
-                'event': event,
-                'record_id': record_meta
-            }
-
-            subsequences.append(subseq)
-
-    return subsequences
+    if iteration >= max_iterations:
+        audit.append({
+            **record_base, "status": "dropped", "reason": "iteration_guard",
+            "config": asdict(cfg),
+        })
+    return (samples, audit) if return_audit else samples

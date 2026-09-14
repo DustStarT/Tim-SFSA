@@ -1,84 +1,107 @@
-# Tim-SFSA((Temporally-dependent Solar Flare Survival Analysis)) model
+# Tim-SFSA reviewer-revision pipeline
 
-This repository is the cleaned public code release corresponding to the paper draft in `Deep Survival Analysis of Solar Flare Forecasting for Continuous Risk Forecasting`.
+The 7 September 2026 manuscript/response audit is in `docs/RESULTS_AUDIT.md`.
+The complete English and Chinese point-by-point responses are
+`docs/REVIEWER_RESPONSE_EN.md` and `docs/REVIEWER_RESPONSE_ZH.md`.
+The chronological experiment uses forecast-origin years: 11 training and three
+validation censored intervals cross year cutoffs. It is a chronological
+sensitivity analysis, not a strictly prospective backtest. The returned
+`environment.json` records Python 3.7.12/PyTorch 1.13.1; the YAML below defines
+a separate reproduction environment, not the historical runtime of every fit.
 
-The project implements a sequence-based deep survival analysis solar-flare modeling pipeline with:
+This repository implements the event-anchored revision of Tim-SFSA. Each HARP
+contributes a four-hour, 20-step history at observation start and after eligible
+M/X events. Follow-up ends at the next catalog-resolved M/X flare or the actual
+observation end. There are no sliding samples and no fixed 48-hour censoring.
 
-- two-stage training: classification pretraining followed by survival modeling
-- LSTM and Transformer sequence encoders
-- DeepSurv, DeepHit, CoxPH, and CoxKAN downstream survival backbones
-- preprocessing, evaluation, plotting, and survival-time post-processing utilities
+The primary model uses all 24 SHARP parameters. The former correlation-reduced
+18-feature set is retained only as an ablation.
 
-## Repository Layout
+## Environment
+
+```bash
+conda env create -f environment_revision.yml
+conda activate tim-sfsa-revision
+```
+
+CUDA 11.8 is selected for compatibility with the external GTX 1070-class
+server. Change the PyTorch CUDA build in the environment file if the external
+driver requires a different supported runtime.
+
+## Complete run
+
+```bash
+python run_revision_pipeline.py \
+  --data-root /path/to/SWAN \
+  --run-dir /path/to/revision_run \
+  --splits all \
+  --resume
+```
+
+For the documented external server paths, the equivalent resumable wrapper is:
+
+```bash
+bash run_revision_server.sh
+```
+
+Override paths without editing it, for example
+`DATA_ROOT=/data/SWAN RUN_DIR=/runs/revision bash run_revision_server.sh`.
+Use `RUN_MODE=fresh` for a new timestamped run.
+
+- `--resume` verifies the input fingerprint, skips complete stages and restores
+  model, optimizer, scheduler, epoch and random-number states.
+- The known interrupted pre-fix run is migrated automatically: compatible
+  official artifacts are retained, the unconverged linear-Cox baseline is
+  superseded, and chronological evaluation resumes after purging HARPs that
+  cross year boundaries. Unrelated code changes are still rejected.
+- `--fresh` creates a new timestamped output directory if `--run-dir` is not
+  empty.
+- `--splits official` or `--splits chronological` runs one evaluation scheme;
+  `all` runs both.
+- `--quick` is a two-epoch smoke test and is not a reportable experiment.
+
+The full run performs three-seed depth selection, the official 1–3/4/5 split,
+origin-year chronological sensitivity, all baselines and ablations, censor-aware
+metrics, calibration, 1,000 active-region cluster bootstrap replicates,
+AR-block feature importance and response-placeholder generation.
+
+## Important outputs
 
 ```text
-FlameShadowModel/
-|- main.py                         # main training / evaluation entrypoint
-|- run_two_stage.py                # lightweight wrapper for quick launches
-|- configs/
-|  |- default_config.py            # default configuration
-|  `- experiments/                 # curated public presets
-|- data_prep/                      # raw data discovery and subsequence generation
-|- preprocessing/                  # preprocessing and feature selection
-|- models/                         # sequence encoders and survival backbones
-|- evaluation/                     # metrics, evaluator, plotting, comparisons
-`- utils/                          # training, calibration, plotting, misc helpers
+revision_run/
+  data/                         event samples, split manifests, catalog audits
+  depth_selection/              1/2/3/7-layer validation selection
+  experiments/official/         full experiment matrix
+  experiments/chronological/    main model and core baselines
+  aggregate/                    three-seed tables and placeholder map
+  figures/                      sampling, calibration, Brier and importance figures
+  pipeline_state.json           resumable stage state
 ```
 
-## Data Layout
+Reviewer-facing final drafts are in [`docs/`](docs/). The completed external-server
+results have been inserted into the response; the aggregate directory retains a
+machine-generated placeholder map only as an auditable metric index.
 
-By default the code looks for data under `data/SWAN`.
+The chronological manifest has a companion
+`data/chronological_split_exclusions.csv`. A HARP with forecast origins on both
+sides of a 2015 or 2016 boundary is excluded as a whole, preserving both strict
+calendar ordering and HARP disjointness.
 
-Expected layout:
+Deterministic CUDA execution defaults to
+`CUBLAS_WORKSPACE_CONFIG=:4096:8`, set before PyTorch is imported.
 
-```text
-data/SWAN/
-|- partition1/
-|  |- FL/*.csv
-|  `- NF/*.csv
-|- partition2/
-|- partition3/
-|- partition4/
-`- partition5/
-```
-
-Compressed `partition*_instances.tar.gz` files are also supported and will be extracted automatically when needed.
-
-## Setup
-
-Recommended: create a fresh Python environment and install the core dependencies manually.
+## Tests
 
 ```bash
-pip install torch numpy pandas scikit-learn lifelines PyYAML easydict scipy matplotlib seaborn joblib statsmodels
+pytest -m "not integration"
 ```
 
-Optional packages may be needed for some extended utilities or bundled third-party baseline code.
-
-Before running experiments, make sure `cfg.data.data_dir` points to your local SWAN dataset root. The default public value is now the relative path `data/SWAN`.
-
-## Quick Start
-
-Run a lightweight classification-only example:
+The slow synthetic end-to-end/resume test is opt-in:
 
 ```bash
-python main.py --preset classification_only_example
+RUN_REVISION_INTEGRATION=1 pytest -m integration
 ```
 
-Run a lightweight two-stage example:
-
-```bash
-python main.py --preset two_stage_example
-```
-
-Or use the convenience wrapper:
-
-```bash
-python run_two_stage.py --mode two_stage --output_dir results/my_run
-```
-
-All experiment outputs, checkpoints, and plots are written under `results/`.
-
-## Notes for the Public Release
-
-- No dataset is bundled in this repository.
-- No author-local pretrained checkpoint paths are assumed anymore.
+`main.py` is a compatibility shim to the new runner. Old duplicate runners,
+fixed-window generation, post-hoc time-head outputs and log-rank workflow entry
+points have been removed.
