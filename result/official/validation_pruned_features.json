@@ -1,0 +1,33 @@
+{
+  "selection_data": "official partition 4 only",
+  "criterion": "mean AR-block permutation importance across seeds <= 0",
+  "retained": [
+    "TOTUSJH",
+    "TOTBSQ",
+    "TOTPOT",
+    "TOTUSJZ",
+    "ABSNJZH",
+    "SAVNCPP",
+    "USFLUX",
+    "TOTFZ",
+    "MEANPOT",
+    "EPSZ",
+    "MEANSHR",
+    "SHRGT45",
+    "MEANGAM",
+    "MEANGBT",
+    "MEANGBH",
+    "MEANJZD",
+    "MEANALP",
+    "TOTFX",
+    "EPSY",
+    "R_VALUE"
+  ],
+  "removed": [
+    "EPSX",
+    "MEANGBZ",
+    "MEANJZH",
+    "TOTFY"
+  ],
+  "test_partition_used": false
+}
