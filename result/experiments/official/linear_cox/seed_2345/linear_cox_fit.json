@@ -1,0 +1,13 @@
+{
+  "optimizer": "scipy.optimize.L-BFGS-B",
+  "tie_method": "Efron",
+  "l2_penalty": 0.0001,
+  "max_iterations": 1000,
+  "iterations": 573,
+  "function_evaluations": 632,
+  "converged": true,
+  "status": 0,
+  "message": "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH",
+  "objective": 6.181659682069004,
+  "gradient_max_abs": 3.3590069660175323e-06
+}

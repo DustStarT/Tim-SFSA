@@ -1,0 +1,6 @@
+{
+  "purpose": "diagnostic only; this auxiliary coefficient is not used for prediction",
+  "risk_score_coefficient": 9.232953134147818,
+  "schoenfeld_rank_p_value": 0.000924142599265935,
+  "schoenfeld_rank_statistic": 10.973696013843014
+}

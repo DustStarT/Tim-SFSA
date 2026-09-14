@@ -1,8 +1,9 @@
 # Tim-SFSA reviewer-revision pipeline
 
-The 7 September 2026 manuscript/response audit is in `docs/RESULTS_AUDIT.md`.
-The complete English and Chinese point-by-point responses are
-`docs/REVIEWER_RESPONSE_EN.md` and `docs/REVIEWER_RESPONSE_ZH.md`.
+This repository is the cleaned public code release corresponding to the paper draft in `Deep Survival Analysis of Solar Flare Forecasting for Continuous Risk Forecasting`.
+
+This is the first revised version. It mainly improves the data partitioning strategy and expands a set of comparison and ablation experiments.
+
 The chronological experiment uses forecast-origin years: 11 training and three
 validation censored intervals cross year cutoffs. It is a chronological
 sensitivity analysis, not a strictly prospective backtest. The returned
@@ -68,7 +69,7 @@ AR-block feature importance and response-placeholder generation.
 ## Important outputs
 
 ```text
-revision_run/
+result/
   data/                         event samples, split manifests, catalog audits
   depth_selection/              1/2/3/7-layer validation selection
   experiments/official/         full experiment matrix
@@ -77,10 +78,6 @@ revision_run/
   figures/                      sampling, calibration, Brier and importance figures
   pipeline_state.json           resumable stage state
 ```
-
-Reviewer-facing final drafts are in [`docs/`](docs/). The completed external-server
-results have been inserted into the response; the aggregate directory retains a
-machine-generated placeholder map only as an auditable metric index.
 
 The chronological manifest has a companion
 `data/chronological_split_exclusions.csv`. A HARP with forecast origins on both
